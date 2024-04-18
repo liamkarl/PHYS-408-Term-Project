@@ -1,0 +1,195 @@
+\documentclass[reprint,preprintnumbers,amsmath,amssymb,aps,nofootinbib,showkeys]{revtex4-2}
+
+\usepackage[utf8]{inputenc}  % UTF-8 enabled
+\usepackage{graphicx}  % Include figure files
+\usepackage{xcolor}  % Allow for a color text
+\usepackage{amsmath}  % math fonts
+\usepackage{amsfonts}  % math fonts
+\usepackage{latexsym}  % math fonts
+\usepackage{amssymb}  % math fonts
+\usepackage{bm}  % bold math fonts
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}  % add hypertext capabilities
+\usepackage{lipsum}  % dummy text
+\usepackage{setspace}
+
+\begin{document}
+
+\preprint{\textcolor{red}{PHYS-408:} Spring 2024}
+
+\title{The Finite-Difference Time-Domain Method: Discretization of Maxwell's Equations in Python}
+\author{Liam Karl}
+\affiliation{
+    Department of Physics and Astronomy, University of Southern California,
+    Los Angeles, California 90089, USA
+    }
+\date{April 16, 2024}
+
+\begin{abstract}
+    In the following replication study, I will detailing the Finite-Difference Time-Domain Method (FDTD) as devised by Kane S. Yee in 1966 \cite{Yee}. The FDTD Method is a powerful  approach to producing numerical solutions of  Maxwell's equations through staggered-grid discretization of space-time. I will first be explicating the theoretical justification for the method and its constituent parts. Then, I will proceed to discuss my Python implementation of Yee's algorithm as it was presented in his original paper. This implementation will be used to simulate electromagnetic scattering from two simple geometries: a one-dimensional conducting medium and the two-dimensional conducting square discussed in Yee's paper \cite{Yee}. I will conclude with a comparison of my simulation and Yee's original results, elucidating any notable takeaways from the discussion.
+\end{abstract}
+
+\keywords{Finite-Difference Time-Domain Method, Central Difference Approximations, Electromagnetic Waves, Maxwell's Equations}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Introduction}
+
+    The \textbf{Finite-Difference Time-Domain (FDTD) Method} is one of the simplest and most common approaches through which numeric solutions to electromagnetic problems can be obtained \cite{Schneider}. Its application have been useful in a variety of problems: scattering from metal objects and dielectrics, antennae, micro-strip circuits, and electromagnetic absorption in the human body exposed to radiation being choice examples \cite{Utah}.
+
+    In broad strokes, the FDTD Method can solve \textbf{Maxwell's equations} by discretizing the latter with \textbf{finite difference approximations} \cite{Utah}. These approximations solve for the derivative of a function at a given point of interest based on the values of the function at surrounding points \cite{Yew}. Given a continuous field, we can utilize these methods to find the approximate field derivatives in time and space at discrete points.
+
+    This spatiotemporal discretization--that is, the making-discrete of continuous fields in both space and time domains--of differential equations had long been utilized in computational fluid dynamics problems \cite{Ohner}. Kane S. Yee's 1966 work broadened the application of finite-difference methods to electromagnetic problems \cite{Yee}. Its capabilities have been expanded and improved since, but the focus of this replication study is on Yee's original paper.
+
+    The computational benefits of Yee's approach are numerous. Due to the discretization of space, field values at each point in space only depend on their neighboring points rather than the entire matrix of field values \cite{Ohner}. Thus, linear algebra is not required in implementation, which saves a lot of computational resources \cite{Ohner}. Additionally, due to the discretization of time, previous field values do not generally need to be stored unless dealing with specific cases as in dispersive media or particular boundary conditions \cite{Ohner}. This reduces computational demands even further.
+
+    Though, the FDTD Method is not without drawbacks and limitations. As will be discussed in greater detail in Section \ref{stability}, the stability of the method relies on small time-steps. For larger wavelengths, as observed in the case of MRI systems, the time-stepping stability criterion places a limit on the possible spatial resolution \cite{Zhao}.
+
+    In grounding the discussion, I will explain some important terms here.
+
+    interleaving
+    
+    
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Discretization of Maxwell's Equations}\label{theory}
+
+    The key principle of the FDTD is replacing the derivatives of the E-field and H-field in Maxwell's equations with approximate forms discretized in space and time. Here, the constituent parts that contribute to this discretization will be explained in detail.
+
+\subsection{Continuous Maxwell Equations}\label{maxwell}
+
+    We begin with Maxwell's equations for isotropic media in their continuous form. These are the four coupled partial differential equations that dictate the propagation of electromagnetic waves \cite{Ohner}.
+
+    \begin{align}
+        \frac{\partial\bm{B}}{\partial t}\; + \bm{\nabla}\times\bm{E} &= 0,\label{eq:faraday}
+        \\
+        \frac{\partial\bm{D}}{\partial t}\; - \bm{\nabla}\times\bm{H} &= \bm{J},\label{eq:ampere}
+        \\
+        \bm{B} &= \mu\bm{H},
+        \\
+        \bm{D} &= \epsilon\bm{E}\;
+    \end{align}
+
+    where $\bm{J}$, $\bm{\mu}$, and $\bm{\epsilon}$ are functions of space and time \cite{Yee}.
+    
+    Yee's paper takes the boundary conditions for the electromagnetic wave obeying these equations to be those of the perfect conductor. In this case, all tangential components of our E-field as well as the normal component of our H-field vanish at the boundary surface.
+
+\subsection{Central Difference Approximations}\label{cda}
+    
+    We have established what Maxwell's equations look like in their unaltered, continuous form for an isotropic medium. We can now proceed to discretize these equations with finite-difference approximations.
+
+    A finite difference approximation takes 
+
+    I'll also discuss some differences with forward and backward difference approximations, particularly with salience in discussing why we choose central difference approximation.
+
+
+\subsection{Staggered Grid}
+
+     As discussed in the previous section, Maxwell Equations are discretized in space and time with central difference approximations.
+
+    To avoid decoupling the E-field and H-field in our discretization of Maxwell's Equations, our space-time grid (hereafter known as the \textbf{Yee grid}) needs to conform to both of the following two qualities:
+        1) Staggered
+        2) Uncollocated
+    
+    A coordinate system is staggered if and only if each variable (in our case, E-field and H-field values) is defined in a set of points disjoint from other variables. For the purposes of FDTD, every field will need to be defined at a different set of points in space.
+
+    A coordinate system is uncollocated if and only if each component of a tensor variable (in our case, the respective Cartesian components of the E-field and H-field) is defined in a set of points disjoint from the other components. For the purposes of FDTD, every component of field will need to be defined at a different set of points in space.
+
+    The most simple grid is Cartesian, which is unstaggered and collocated. Thus, all fields and their components are defined on the same set of points. We cannot use a simple Cartesian grid due to the problem of \textbf{phase-velocity anisotropy} requiring the choice of very fine discretization. This would imply very long computation times.
+
+    The Yee grid utilizes 
+
+    Interleaved "leapfrog" algorithm.
+
+    I will then briefly explore the benefit this staggering provides over other methods.
+    
+\subsection{Stability Criterion}\label{stability}
+
+    This will explain the upper-bound on the time-step in our simulation. This will involve a discussion of the Courant-Friedrichs-Lewy (CFL) condition and how it can be accommodated in this context.
+
+    I will then briefly explore some implications on the FDTD, particularly on temporal accuracy and computational efficiency.
+
+\subsection{FDTD in One Dimension}
+
+    I will show the derivation of the finite-difference equations for the transverse EM wave in one dimension.
+
+\subsection{FDTD in Two Dimensions}
+
+    I will show the derivation of the finite-difference equations for the transverse EM wave in two dimensions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+\section{Implementation}\label{code}
+
+    In this section, I will be detailing my implementation of the FDTD Method in code.
+
+    I will begin by discussing pseudo-code that reflects the algorithm justified in the previous section. Then, I will go through my Python code specifically to explain how it works in practice.
+
+    I will be making effort most especially to justify my choice of constants, grid sizes, and any assumptions that I build into the implementation.
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Physical Examples}\label{examples}
+
+    In this section, I will explicate two examples of boundary-value problems that can demonstrate the FDTD Method.
+
+    In both subsections, I will begin by illustrating the physical example in words and diagrams. Then, I will be detailing the physical constraints and boundary conditions that each scenario places on all relevant observables. I will finish by discussing the resultant equations we derive and their implementation in code.
+
+\subsection{The One-Dimensional Conducting Line}
+
+    The first example I hope to discuss will be a simpler case of a one-dimensional conductor reflecting an incident EM wave.
+
+    I am not all too sure about this example as of now, as it may be too simple.
+
+\subsection{The Two-Dimensional Conducting Square.}
+
+    The second of these will be a more complex, though not arduous, example. Specifically, I will be covering the example given in Yee's paper: the two-dimensional, conducting square.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Results}\label{results}
+
+    I will be highlighting the results of my coded simulations here, making sure to include graphs that can be compared to the original data in Yee's paper. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Discussion}\label{discussion}
+
+    Any discrepancies between the expected results will be noted and addressed, while notable phenomena in each run will be provided physical explanations.
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Conclusions}\label{conclusions}
+
+     Any conclusions to draw from our specific implementation and how it may have differed from Yee's will be useful here.
+     
+     The utility and limitations, both theoretical and practical, of the FDTD Method should be addressed here, as well.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Code Availability}
+
+    Code is available at \url{https://github.com/liamkarl/projectname}.
+
+    I will upload the relevant code to a linked GitHub repository at a later point.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Acknowledgments}
+
+    Any acknowledgments will go here.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+\section{Additional Content}
+
+    If space for any additional content or plots is needed, I'll put them here.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\bibliography{bibliography}  % Produces the bibliography via BibTeX.
+
+\end{document}
